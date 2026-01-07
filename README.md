@@ -6,3 +6,4 @@
 - Distributed Spil Server
 - Traffik kontrolsystem
 - Banking System (crypto)
+- Mesh vejrstationer der ikke kræver at være fysisk forbundet med noget
