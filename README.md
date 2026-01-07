@@ -1,5 +1,5 @@
 # P4-The-Good-Ones
-## Reliabe Detributed Systems
+## Reliable distributed systems
 
 # Project Ideer
 - Valg System
