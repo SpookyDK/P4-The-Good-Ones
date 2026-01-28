@@ -1,5 +1,5 @@
 # P4-The-Good-Ones
-## Reliable distributed systems
+## Reliable systems
 
 # Project Ideer
 - Valg System               //Boring........zz.zzzzzzzzZZZzzZZzz
