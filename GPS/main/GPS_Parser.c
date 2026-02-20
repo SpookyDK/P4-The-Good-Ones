@@ -161,7 +161,7 @@ void init_gps_uart() {
     uart_driver_install(GPS_UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0);
 
     printf("Resetting GPS settings\n");
-    calcCheckSum(ubx_wipe_settings, sizeof(ubx_wipe_settings));
+    gpsCalcCheckSum(ubx_wipe_settings, sizeof(ubx_wipe_settings));
 
     uart_write_bytes(GPS_UART_NUM, (const char *)ubx_wipe_settings,
                      sizeof(ubx_wipe_settings));
@@ -189,13 +189,13 @@ void init_gps_uart() {
                               100 / portTICK_PERIOD_MS); // short timeout
 
     printf("Setting full power mode\n");
-    calcCheckSum(cfg_power_full, sizeof(cfg_power_full));
+    gpsCalcCheckSum(cfg_power_full, sizeof(cfg_power_full));
 
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_power_full,
                      sizeof(cfg_power_full));
 
     vTaskDelay(200 / portTICK_PERIOD_MS);
-    calcCheckSum(cfg_power_get, sizeof(cfg_power_get));
+    gpsCalcCheckSum(cfg_power_get, sizeof(cfg_power_get));
 
     printf("Asking for power_state\n");
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_power_get,
@@ -215,7 +215,7 @@ void init_gps_uart() {
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    calcCheckSum(cfg_data_poll, sizeof(cfg_data_poll));
+    gpsCalcCheckSum(cfg_data_poll, sizeof(cfg_data_poll));
     printf("Polling data\n");
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_data_poll,
                      sizeof(cfg_data_poll));
@@ -233,7 +233,7 @@ void init_gps_uart() {
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
-    calcCheckSum(cfg_nav5_stationary_3d, sizeof(cfg_nav5_stationary_3d));
+    gpsCalcCheckSum(cfg_nav5_stationary_3d, sizeof(cfg_nav5_stationary_3d));
     printf("Setting to stationary\n");
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_nav5_stationary_3d,
                      sizeof(cfg_nav5_stationary_3d));
@@ -251,7 +251,7 @@ void init_gps_uart() {
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
-    calcCheckSum(cfg_prt_ubx, sizeof(cfg_prt_ubx));
+    gpsCalcCheckSum(cfg_prt_ubx, sizeof(cfg_prt_ubx));
     printf("Setting to ubx\n");
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_prt_ubx,
                      sizeof(cfg_prt_ubx));
@@ -271,13 +271,13 @@ void init_gps_uart() {
 
     printf("Setting to 0.1hz\n");
 
-    calcCheckSum(cfg_rate_01hz, sizeof(cfg_rate_01hz));
+    gpsCalcCheckSum(cfg_rate_01hz, sizeof(cfg_rate_01hz));
 
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_rate_01hz,
                      sizeof(cfg_rate_01hz));
 
     printf("Setting to ECO\n");
-    calcCheckSum(cfg_power_eco, sizeof(cfg_power_eco));
+    gpsCalcCheckSum(cfg_power_eco, sizeof(cfg_power_eco));
 
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_power_eco,
                      sizeof(cfg_power_eco));
@@ -295,7 +295,7 @@ void init_gps_uart() {
     printf("\n");
 
     printf("Setting to Enabling pos update\n");
-    calcCheckSum(cfg_msg_posllh, sizeof(cfg_msg_posllh));
+    gpsCalcCheckSum(cfg_msg_posllh, sizeof(cfg_msg_posllh));
 
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_msg_posllh,
                      sizeof(cfg_msg_posllh));
@@ -311,7 +311,7 @@ void init_gps_uart() {
     printf("\n");
 
     printf("Setting to Enabling UTC update\n");
-    calcCheckSum(cfg_msg_timeutc, sizeof(cfg_msg_timeutc));
+    gpsCalcCheckSum(cfg_msg_timeutc, sizeof(cfg_msg_timeutc));
 
     uart_write_bytes(GPS_UART_NUM, (const char *)cfg_msg_timeutc,
                      sizeof(cfg_msg_timeutc));
@@ -328,7 +328,7 @@ void init_gps_uart() {
     len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
                           500 / portTICK_PERIOD_MS); // short timeout
                                                      //
-    calcCheckSum(poll_nav_posllh, sizeof(poll_nav_posllh));
+    gpsCalcCheckSum(poll_nav_posllh, sizeof(poll_nav_posllh));
     while (1) {
         // printf("reading\n");
         len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
@@ -336,7 +336,7 @@ void init_gps_uart() {
                                                          //
         // uart_write_bytes(GPS_UART_NUM, (const char *)poll_nav_posllh,
         //                  sizeof(poll_nav_posllh));
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
         len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
                               500 / portTICK_PERIOD_MS); // short timeout
         if (len == 0) {
@@ -347,9 +347,13 @@ void init_gps_uart() {
         printf("something recieved len = %d \n", len);
         // check if first message is pos
         if (len == 64 && data[2] == 0x01 && data[3] == 0x02) {
-            for (int i = 0; i < len; i++) {
-                printf("%x,", data[i]);
-            }
+            // for (int i = 0; i < len; i++) {
+            //     if (data[i] == 0xB5) {
+            //         printf("\n");
+            //     }
+            //     printf("%x,", data[i]);
+            // }
+            // printf("\n");
             printf("\n");
 
             int32_t lon =
@@ -372,33 +376,41 @@ void init_gps_uart() {
             printf("\n");
         }
         // check if second part of message is time
-        printf("%x %x \n", data[38], data[39]);
         if (len == 64 && data[38] == 0x01 && data[39] == 0x21) {
-            printf("parsing time\n");
-            uint32_t iTOW = data[40] | (data[41] << 8) | (data[42] << 16) |
-                            (data[43] << 24);
-            uint32_t tAcc = data[44] | (data[45] << 8) | (data[46] << 16) |
-                            (data[47] << 24);
-            uint16_t year = data[48] | (data[49] << 8);
-            uint8_t month = data[50];
-            uint8_t day = data[51];
-            uint8_t hour = data[52];
-            uint8_t min = data[53];
-            uint8_t sec = data[54];
-            uint8_t valid = data[55];
+            // for (int i = 0; i < len; i++) {
+            //     if (data[i] == 0xB5) {
+            //         printf("\n");
+            //     }
+            //     printf("%x,", data[i]);
+            // }
+            uint8_t *time_data = &data[38];
+            // printf("\n");
+            // printf("parsing time\n");
+            uint8_t day = time_data[19];
+            uint8_t hour = time_data[20];
+            uint8_t min = time_data[21];
+            uint8_t sec = time_data[22];
+            uint8_t valid = time_data[23];
             int32_t nano = data[56] | (data[57] << 8) | (data[58] << 16) |
                            (data[59] << 24);
-
-            if (valid & 0x04) {
-                printf("UTC: %" PRIu16 "-%02" PRIu8 "-%02" PRIu8 " %02" PRIu8
-                       ":%02" PRIu8 ":%02" PRIu8 ".%" PRId32 "\n",
-                       year, month, day, hour, min, sec, nano);
+            // printf("valid = %x", valid);
+            printf("UTC:  day %02" PRIu8 " %02" PRIu8 ":%02" PRIu8 ":%02" PRIu8
+                   ".%" PRId32 "\n",
+                   day, hour, min, sec, nano);
+        }
+        if (len != 64) {
+            printf("recieved unknown package\n");
+            for (int i = 0; i < len; i++) {
+                if (data[i] == 0xB5) {
+                    printf("\n");
+                }
+                printf("%x,", data[i]);
             }
         }
     }
 }
 
-int calcCheckSum(uint8_t *sentence, uint8_t messageLenghtInc) {
+int gpsCalcCheckSum(uint8_t *sentence, uint8_t messageLenghtInc) {
     uint8_t CK_A = 0, CK_B = 0;
 
     for (int i = 2; i < messageLenghtInc - 2; i++) {
@@ -411,299 +423,332 @@ int calcCheckSum(uint8_t *sentence, uint8_t messageLenghtInc) {
     return 0;
 }
 
-// standard NMEA checksum
-int CheckSumCheck_NMEA(const char *sentence) {
-    unsigned char checksum = 0;
-    // Skip inital $
-    if (*sentence == '$') // skip $
-        sentence++;
+int gpsSendMessage(uint8_t *sentence, uint8_t messageLengthInc) {
+    int len = 0;
+    // Read to clear gps buffer
+    len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
+                          200 / portTICK_PERIOD_MS); // short timeout
+                                                     //
+    gpsCalcCheckSum(sentence, messageLengthInc);
 
-    // XOR checksum
-    while (*sentence && *sentence != '*') {
-        checksum ^= (unsigned char)(*sentence);
-        sentence++;
+    uart_write_bytes(GPS_UART_NUM, (const char *)sentence, messageLengthInc);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
+                          200 / portTICK_PERIOD_MS); // short timeout
+    if (data[3] == 0x01) {
+        return 0;
+    } else {
+        return 1;
     }
-
-    // $GPGGA,124612.00,5700.80660,N,00959.16325,E,1,07,1.15,-6.9,M,42.4,M,,*70
-    if (*sentence == '*' && *(sentence + 1) && *(sentence + 2)) {
-        unsigned char ggchecksum =
-            (unsigned char)strtol(sentence + 1, NULL, 16);
-        return checksum == ggchecksum;
-    }
-    return 0;
 }
+// // standard NMEA checksum
+// int CheckSumCheck_NMEA(const char *sentence) {
+//     unsigned char checksum = 0;
+//     // Skip inital $
+//     if (*sentence == '$') // skip $
+//         sentence++;
+//
+//     // XOR checksum
+//     while (*sentence && *sentence != '*') {
+//         checksum ^= (unsigned char)(*sentence);
+//         sentence++;
+//     }
+//
+//     //
+//     $GPGGA,124612.00,5700.80660,N,00959.16325,E,1,07,1.15,-6.9,M,42.4,M,,*70
+//     if (*sentence == '*' && *(sentence + 1) && *(sentence + 2)) {
+//         unsigned char ggchecksum =
+//             (unsigned char)strtol(sentence + 1, NULL, 16);
+//         return checksum == ggchecksum;
+//     }
+//     return 0;
+// }
 
 /* Helper to get the next token boundaries while preserving empty tokens.
    p points at start of token. returns pointer to delimiter or NULL if last
    token. toklen = length of token (may be 0). */
-static char *find_next_delim(char *start, char **tok_start, size_t *toklen) {
-    char *c = start;
-    *tok_start = start;
-    while (*c && *c != ',' && *c != '*')
-        c++;
-    *toklen = (size_t)(c - start);
-    return (*c == '\0') ? NULL : c; // pointer to delimiter or NULL
-}
+// static char *find_next_delim(char *start, char **tok_start, size_t
+// *toklen) {
+//     char *c = start;
+//     *tok_start = start;
+//     while (*c && *c != ',' && *c != '*')
+//         c++;
+//     *toklen = (size_t)(c - start);
+//     return (*c == '\0') ? NULL : c; // pointer to delimiter or NULL
+// }
 
 // parses the GPGGA message
-int parseGPGGA(const char *sentence, struct GPGGA_Message *msg) {
-    if (!CheckSumCheck_NMEA(sentence))
-        return 0;
-
-    memset(msg, 0, sizeof(*msg)); // clear struct each time
-
-    char copy[256];
-    strncpy(copy, sentence, sizeof(copy) - 1);
-    copy[sizeof(copy) - 1] = '\0';
-
-    char *p = copy;
-    int field = 0;
-
-    while (1) {
-        char *tok_start = NULL;
-        size_t toklen = 0;
-        char *delim = find_next_delim(p, &tok_start, &toklen);
-
-        // process token [tok_start .. tok_start+toklen-1]
-        // token may be empty (toklen == 0)
-        switch (field) {
-        case 0: // ID (skip leading $)
-            if (toklen > 0 && tok_start[0] == '$') {
-                size_t cp_len = toklen - 1;
-                if (cp_len > sizeof(msg->ID) - 1)
-                    cp_len = sizeof(msg->ID) - 1;
-                strncpy(msg->ID, tok_start + 1, cp_len);
-                msg->ID[cp_len] = '\0';
-            }
-            break;
-        case 1: // UTC
-            if (toklen) {
-                char tmp[32];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->UTC = atof(tmp);
-            }
-            break;
-        case 2: // latitude raw DDMM.MMMM
-            if (toklen) {
-                char tmp[32];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->latitude = atof(tmp);
-            }
-            break;
-        case 3: // N/S
-            if (toklen)
-                msg->direction_Latitude = tok_start[0];
-            break;
-        case 4: // longitude raw DDDMM.MMMM
-            if (toklen) {
-                char tmp[32];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->longitude = atof(tmp);
-            }
-            break;
-        case 5: // E/W
-            if (toklen)
-                msg->direction_Longitude = tok_start[0];
-            break;
-        case 6: // fix quality
-            if (toklen) {
-                char tmp[16];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->GPS_Quality_indicator = atoi(tmp);
-            }
-            break;
-        case 7: // number of satellites
-            if (toklen) {
-                char tmp[16];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->number_of_GPS = atoi(tmp);
-            }
-            break;
-        case 8: // HDOP
-            if (toklen) {
-                char tmp[16];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->HDOP = atof(tmp);
-            }
-            break;
-        case 9: // altitude
-            if (toklen) {
-                char tmp[32];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->height = atof(tmp);
-            }
-            break;
-        case 10: // altitude unit
-            if (toklen)
-                msg->unit_of_height = tok_start[0];
-            break;
-        case 11: // geoid separation
-            if (toklen) {
-                char tmp[32];
-                memcpy(tmp, tok_start, toklen);
-                tmp[toklen] = '\0';
-                msg->geoid_Separation = atof(tmp);
-            }
-            break;
-        case 12: // geoid unit
-            if (toklen)
-                msg->geoid_unit = tok_start[0];
-            break;
-        case 14: // checksum token (after '*' — we treat this position as
-                 // checksum)
-            if (toklen) {
-                // copy up to 2 hex digits
-                size_t i = 0;
-                for (; i < toklen && i < (sizeof(msg->checkSum) - 1); ++i) {
-                    if (!isxdigit((unsigned char)tok_start[i]))
-                        break;
-                    msg->checkSum[i] = tok_start[i];
-                }
-                msg->checkSum[i] = '\0';
-            }
-            break;
-        default:
-            break;
-        }
-
-        // if there is no delimiter, we're at the last token -> done
-        if (!delim)
-            break;
-
-        // advance to char after delimiter
-        p = delim + 1;
-        field++;
-        // loop continues; this preserves empty fields since toklen may be 0
-    }
-    return 1;
-}
-
+// int parseGPGGA(const char *sentence, struct GPGGA_Message *msg) {
+//     if (!CheckSumCheck_NMEA(sentence))
+//         return 0;
+//
+//     memset(msg, 0, sizeof(*msg)); // clear struct each time
+//
+//     char copy[256];
+//     strncpy(copy, sentence, sizeof(copy) - 1);
+//     copy[sizeof(copy) - 1] = '\0';
+//
+//     char *p = copy;
+//     int field = 0;
+//
+//     while (1) {
+//         char *tok_start = NULL;
+//         size_t toklen = 0;
+//         char *delim = find_next_delim(p, &tok_start, &toklen);
+//
+//         // process token [tok_start .. tok_start+toklen-1]
+//         // token may be empty (toklen == 0)
+//         switch (field) {
+//         case 0: // ID (skip leading $)
+//             if (toklen > 0 && tok_start[0] == '$') {
+//                 size_t cp_len = toklen - 1;
+//                 if (cp_len > sizeof(msg->ID) - 1)
+//                     cp_len = sizeof(msg->ID) - 1;
+//                 strncpy(msg->ID, tok_start + 1, cp_len);
+//                 msg->ID[cp_len] = '\0';
+//             }
+//             break;
+//         case 1: // UTC
+//             if (toklen) {
+//                 char tmp[32];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->UTC = atof(tmp);
+//             }
+//             break;
+//         case 2: // latitude raw DDMM.MMMM
+//             if (toklen) {
+//                 char tmp[32];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->latitude = atof(tmp);
+//             }
+//             break;
+//         case 3: // N/S
+//             if (toklen)
+//                 msg->direction_Latitude = tok_start[0];
+//             break;
+//         case 4: // longitude raw DDDMM.MMMM
+//             if (toklen) {
+//                 char tmp[32];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->longitude = atof(tmp);
+//             }
+//             break;
+//         case 5: // E/W
+//             if (toklen)
+//                 msg->direction_Longitude = tok_start[0];
+//             break;
+//         case 6: // fix quality
+//             if (toklen) {
+//                 char tmp[16];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->GPS_Quality_indicator = atoi(tmp);
+//             }
+//             break;
+//         case 7: // number of satellites
+//             if (toklen) {
+//                 char tmp[16];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->number_of_GPS = atoi(tmp);
+//             }
+//             break;
+//         case 8: // HDOP
+//             if (toklen) {
+//                 char tmp[16];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->HDOP = atof(tmp);
+//             }
+//             break;
+//         case 9: // altitude
+//             if (toklen) {
+//                 char tmp[32];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->height = atof(tmp);
+//             }
+//             break;
+//         case 10: // altitude unit
+//             if (toklen)
+//                 msg->unit_of_height = tok_start[0];
+//             break;
+//         case 11: // geoid separation
+//             if (toklen) {
+//                 char tmp[32];
+//                 memcpy(tmp, tok_start, toklen);
+//                 tmp[toklen] = '\0';
+//                 msg->geoid_Separation = atof(tmp);
+//             }
+//             break;
+//         case 12: // geoid unit
+//             if (toklen)
+//                 msg->geoid_unit = tok_start[0];
+//             break;
+//         case 14: // checksum token (after '*' — we treat this position as
+//                  // checksum)
+//             if (toklen) {
+//                 // copy up to 2 hex digits
+//                 size_t i = 0;
+//                 for (; i < toklen && i < (sizeof(msg->checkSum) - 1);
+//                 ++i) {
+//                     if (!isxdigit((unsigned char)tok_start[i]))
+//                         break;
+//                     msg->checkSum[i] = tok_start[i];
+//                 }
+//                 msg->checkSum[i] = '\0';
+//             }
+//             break;
+//         default:
+//             break;
+//         }
+//
+//         // if there is no delimiter, we're at the last token -> done
+//         if (!delim)
+//             break;
+//
+//         // advance to char after delimiter
+//         p = delim + 1;
+//         field++;
+//         // loop continues; this preserves empty fields since toklen may
+//         be 0
+//     }
+//     return 1;
+// }
+//
 // Convert raw NMEA lat/lon (DDMM.MMMM) to decimal degrees
-double convertToDecimalDegrees(
-    float raw,
-    char dir) { // weird math to convert the time position to degrees
-    if (raw == 0 || dir == '\0')
-        return 0.0;
-    int degrees = (int)(raw / 100);
-    double minutes = raw - (degrees * 100);
-    double decimal = degrees + minutes / 60.0;
-    if (dir == 'S' || dir == 'W')
-        decimal *= -1.0;
-    return decimal;
-}
+// double convertToDecimalDegrees(
+//     float raw,
+//     char dir) { // weird math to convert the time position to degrees
+//     if (raw == 0 || dir == '\0')
+//         return 0.0;
+//     int degrees = (int)(raw / 100);
+//     double minutes = raw - (degrees * 100);
+//     double decimal = degrees + minutes / 60.0;
+//     if (dir == 'S' || dir == 'W')
+//         decimal *= -1.0;
+//     return decimal;
+// }
 
-int GPSParser(char *sentence, struct Coordinate *retCoordinate) {
-    struct GPGGA_Message msg;
-    // struct Coordinate cords;
-    retCoordinate->lat = 0;
-    retCoordinate->lon = 0;
+// int GPSParser(char *sentence, struct Coordinate *retCoordinate) {
+//     struct GPGGA_Message msg;
+//     // struct Coordinate cords;
+//     retCoordinate->lat = 0;
+//     retCoordinate->lon = 0;
+//
+//     if (!parseGPGGA(sentence, &msg)) { // checks if the sentence is
+//     valid.
+//         // retCoordinate= cords;
+//         return 0;
+//     }
+//     // converts to decimal degrees
+//     retCoordinate->lat =
+//         (float)convertToDecimalDegrees(msg.latitude,
+//         msg.direction_Latitude);
+//     retCoordinate->lon =
+//         (float)convertToDecimalDegrees(msg.longitude,
+//         msg.direction_Longitude);
+//
+//     retCoordinate->UTC = msg.UTC;
+//     retCoordinate->height = msg.height;
+//
+//     return 1;
+// }
+//
+// int main(void) { // eksempel på hvordan GPSParser skal kaldes/bruges
+//     struct Coordinate out1;
+//     struct Coordinate out2;
+//     struct Coordinate out3;
+//     struct Coordinate out4;
+//
+//     const char *text1 =
+//     "$GPGGA,102903.60,5700.82752,N,00959.18060,E,1,05,2.90,"
+//                         "15.6,M,42.4,M,,*6F";
+//     const char *text2 =
+//     "$GPGGA,103004.50,5730.12345,N,01001.56789,E,1,08,1.20,"
+//                         "20.5,M,45.0,M,,*68";
+//     const char *text3 =
+//     "$GPGGA,102903.40,5700.82745,N,00959.18057,E,1,05,2.90,"
+//                         "15.5,M,42.4,M,,*6C\n";
+//     const char *text4 = "$GPGGA,102903.00,,,,,0,00,99.99,,,,,,*6F";
+//
+//     GPSParser(text1, &out1);
+//     GPSParser(text2, &out2);
+//     GPSParser(text3, &out3);
+//     GPSParser(text4, &out4);
+//
+//     printf("%f, %f\n", out1.lat, out1.lon); // Lat/Lon from first
+//     sentence printf("%f, %f\n", out2.lat, out2.lon); // Lat/Lon from
+//     second sentence printf("%f, %f\n", out3.lat, out3.lon); // Lat/Lon
+//     from second sentence printf("%f, %f\n", out4.lat, out4.lon);
+//
+//     return 0;
+// }
 
-    if (!parseGPGGA(sentence, &msg)) { // checks if the sentence is valid.
-        // retCoordinate= cords;
-        return 0;
-    }
-    // converts to decimal degrees
-    retCoordinate->lat =
-        (float)convertToDecimalDegrees(msg.latitude, msg.direction_Latitude);
-    retCoordinate->lon =
-        (float)convertToDecimalDegrees(msg.longitude, msg.direction_Longitude);
+// double distance_meters(double lat1, double lon1, double lat2, double
+// lon2) {
+//     // Convert degrees to radians once
+//     double rad = M_PI / 180.0;
+//
+//     // Average latitude (radians)
+//     double lat_avg = (lat1 + lat2) * 0.5 * rad;
+//
+//     // Latitude/Longitude differences in radians
+//     double dlat = (lat2 - lat1) * rad;
+//     double dlon = (lon2 - lon1) * rad;
+//
+//     // Cosine approximation for “compression” of longitude
+//     double cos_lat = cos(lat_avg);
+//
+//     // Scale deltas
+//     double x = dlon * 6371000.0 * cos_lat; // east-west distance
+//     double y = dlat * 6371000.0;           // north-south distance
+//
+//     // Pythagoras for near-flat distances
+//     return sqrt(x * x + y * y);
+// }
 
-    retCoordinate->UTC = msg.UTC;
-    retCoordinate->height = msg.height;
-
-    return 1;
-}
-
-int main(void) { // eksempel på hvordan GPSParser skal kaldes/bruges
-    struct Coordinate out1;
-    struct Coordinate out2;
-    struct Coordinate out3;
-    struct Coordinate out4;
-
-    const char *text1 = "$GPGGA,102903.60,5700.82752,N,00959.18060,E,1,05,2.90,"
-                        "15.6,M,42.4,M,,*6F";
-    const char *text2 = "$GPGGA,103004.50,5730.12345,N,01001.56789,E,1,08,1.20,"
-                        "20.5,M,45.0,M,,*68";
-    const char *text3 = "$GPGGA,102903.40,5700.82745,N,00959.18057,E,1,05,2.90,"
-                        "15.5,M,42.4,M,,*6C\n";
-    const char *text4 = "$GPGGA,102903.00,,,,,0,00,99.99,,,,,,*6F";
-
-    GPSParser(text1, &out1);
-    GPSParser(text2, &out2);
-    GPSParser(text3, &out3);
-    GPSParser(text4, &out4);
-
-    printf("%f, %f\n", out1.lat, out1.lon); // Lat/Lon from first sentence
-    printf("%f, %f\n", out2.lat, out2.lon); // Lat/Lon from second sentence
-    printf("%f, %f\n", out3.lat, out3.lon); // Lat/Lon from second sentence
-    printf("%f, %f\n", out4.lat, out4.lon);
-
-    return 0;
-}
-
-double distance_meters(double lat1, double lon1, double lat2, double lon2) {
-    // Convert degrees to radians once
-    double rad = M_PI / 180.0;
-
-    // Average latitude (radians)
-    double lat_avg = (lat1 + lat2) * 0.5 * rad;
-
-    // Latitude/Longitude differences in radians
-    double dlat = (lat2 - lat1) * rad;
-    double dlon = (lon2 - lon1) * rad;
-
-    // Cosine approximation for “compression” of longitude
-    double cos_lat = cos(lat_avg);
-
-    // Scale deltas
-    double x = dlon * 6371000.0 * cos_lat; // east-west distance
-    double y = dlat * 6371000.0;           // north-south distance
-
-    // Pythagoras for near-flat distances
-    return sqrt(x * x + y * y);
-}
-
-volatile struct Coordinate newCoordinate;
-
-void gps_task(void *arg) {
-    printf("starting task\n");
-    while (1) {
-        vTaskDelay(200 / portTICK_PERIOD_MS);
-
-        int len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
-                                  5000 / portTICK_PERIOD_MS); // short timeout
-        if (len > 0) {
-            for (int i = 0; i < len; i++) {
-                printf("%c", data[i]); // print each byte in hex
-            }
-            GPSParser((char *)data, &newCoordinate);
-            printf("\n%f, %f, time: %.1f, height: %i\n", newCoordinate.lat,
-                   newCoordinate.lon, newCoordinate.UTC, newCoordinate.height);
-            if (lastCoordinate.lat == 0 &&
-                lastCoordinate.lon == 0) { // checks if it loses connection
-                lastCoordinate = newCoordinate;
-            }
-
-        } else {
-            printf("No Data recieved\n");
-            continue;
-        }
-        printf("distance: %f\n",
-               distance_meters(newCoordinate.lat, newCoordinate.lon,
-                               lastCoordinate.lat, lastCoordinate.lon));
-
-        if (distance_meters(newCoordinate.lat, newCoordinate.lon,
-                            lastCoordinate.lat,
-                            lastCoordinate.lon) < 5) { // 2 er måske bedst
-            ESP_LOGW("GPS", "distance too small");
-            continue;
-        }
-    }
-}
+// volatile struct Coordinate newCoordinate;
+//
+// void gps_task(void *arg) {
+//     printf("starting task\n");
+//     while (1) {
+//         vTaskDelay(200 / portTICK_PERIOD_MS);
+//
+//         int len = uart_read_bytes(GPS_UART_NUM, data, BUF_SIZE,
+//                                   5000 / portTICK_PERIOD_MS); // short
+//                                   timeout
+//         if (len > 0) {
+//             for (int i = 0; i < len; i++) {
+//                 printf("%c", data[i]); // print each byte in hex
+//             }
+//             GPSParser((char *)data, &newCoordinate);
+//             printf("\n%f, %f, time: %.1f, height: %i\n",
+//             newCoordinate.lat,
+//                    newCoordinate.lon, newCoordinate.UTC,
+//                    newCoordinate.height);
+//             if (lastCoordinate.lat == 0 &&
+//                 lastCoordinate.lon == 0) { // checks if it loses
+//                 connection lastCoordinate = newCoordinate;
+//             }
+//
+//         } else {
+//             printf("No Data recieved\n");
+//             continue;
+//         }
+//         printf("distance: %f\n",
+//                distance_meters(newCoordinate.lat, newCoordinate.lon,
+//                                lastCoordinate.lat, lastCoordinate.lon));
+//
+//         if (distance_meters(newCoordinate.lat, newCoordinate.lon,
+//                             lastCoordinate.lat,
+//                             lastCoordinate.lon) < 5) { // 2 er måske
+//                             bedst
+//             ESP_LOGW("GPS", "distance too small");
+//             continue;
+//         }
+//     }
+// }
